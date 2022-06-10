@@ -166,8 +166,11 @@ BEGIN
 END
 GO
 
+SELECT * FROM users
+GO
+
 -- Ejecucion correctamente
-EXEC sp_actualizar_usuario 61, 'Tutankadev', 'tutankadev@gmai.com', '321'
+EXEC sp_actualizar_usuario 1, 'Tutankadev', 'tutankadev@gmai.com', '321'
 GO
 -- Prueba de error
 EXEC sp_actualizar_usuario 5, 'Tutankadev', 'tutankadev@gmai.com', '321'
@@ -181,7 +184,7 @@ AS
 	BEGIN
 		IF EXISTS(SELECT id FROM users WHERE id = @id)
 			BEGIN
-			IF (SELECT estado FROM users WHERE estado = 0) = 0
+			IF (SELECT estado FROM users WHERE estado = 0 AND id = @id) = 0
 				UPDATE users SET estado = 1
 				WHERE id = @id
 			
@@ -195,11 +198,20 @@ AS
 	END
 GO
 
-
-EXEC sp_cambio_estado 3
+SELECT * FROM users
 GO
 
 EXEC sp_todos_usuarios
+GO
+
+EXEC sp_cambio_estado 2
+GO
+
+EXEC sp_todos_usuarios
+GO
+
+EXEC sp_usuarios_activos
+EXEC sp_usuarios_de_baja
 GO
 
 -- Procedimientos almacenados para suscripciones
@@ -253,6 +265,9 @@ EXEC sp_insertar_sus 'Spotify', 'Mensual', 9.90, 'PEN', '2022-06-03', 1
 EXEC sp_insertar_sus 'Amazon Prime', 'Mensual', 24.90, 'PEN', '2022-06-03', 1
 GO
 
+SELECT * FROM suscriptions
+GO
+
 -- READ
 
 CREATE VIEW vw_ver_suscripciones
@@ -274,6 +289,8 @@ GO
 
 -- Ejecutar la vista
 SELECT * FROM vw_ver_suscripciones
+GO
+SELECT * FROM suscriptions
 GO
 
 -- Procedimiento almacenado para ver suscripciones por usuario
@@ -304,7 +321,7 @@ GO
 --DROP PROCEDURE sp_suscripciones_por_usuario
 
 -- Ejecutar
-EXEC sp_suscripciones_por_usuario 3
+EXEC sp_suscripciones_por_usuario 2
 GO
 
 -- UPDATE
@@ -338,7 +355,10 @@ END
 GO
 
 -- Ejecutar
-EXEC sp_actualizar_sus 1, 'Netflix', 'Mensual', 44.90, 'PEN', '2022-06-04'
+EXEC sp_actualizar_sus 7, 'Netflix', 'Mensual', 24.90, 'PEN', '2022-06-04'
+GO
+
+SELECT * FROM suscriptions
 GO
 
 -- DELETE
@@ -358,7 +378,7 @@ BEGIN
 END
 GO
 
-EXEC sp_delete_sus 3
+EXEC sp_delete_sus 30
 GO
 
 
@@ -368,7 +388,6 @@ GO
 
 EXEC sp_cambio_estado 2
 GO
-
 
 EXEC sp_usuarios_activos
 GO
@@ -388,9 +407,260 @@ GO
 SELECT * FROM vw_ver_suscripciones
 GO
 
-EXEC sp_suscripciones_por_usuario 1
+EXEC sp_suscripciones_por_usuario 12
 GO
 
 EXEC sp_actualizar_sus 1, 'Netflix', 'Mensual', 24.90, 'PEN', '2022-06-04'
 GO
 
+-- FTR5
+--Consultas estadisticas
+
+
+-- Mostramos todos los usuarios
+EXEC sp_todos_usuarios
+GO
+
+
+-- Mostramos todas las suscripciones con sus respectivos usuarios
+SELECT * FROM vw_ver_suscripciones
+GO
+
+
+EXEC sp_suscripciones_por_usuario 1
+GO
+
+--Creamos nuvos procedimientos almacenados
+
+CREATE PROCEDURE sp_busqueda_moneda
+	@id INT,
+	@moneda CHAR(3)
+AS
+BEGIN
+	IF EXISTS(SELECT id FROM users WHERE id = @id)
+	BEGIN
+		SELECT
+			u.nombre Usuario,
+			u.email Email,
+			s.nombre Plataforma,
+			s.moneda Moneda,
+			s.precio Precio,
+			s.ciclo Ciclo,
+			s.fecha_pago 'Fecha de pago'
+		FROM suscriptions s
+		INNER JOIN users U ON u.id = @id AND s.moneda = @moneda
+		WHERE s.id_user = u.id
+	END
+	ELSE
+		RAISERROR('ID no existe', 16, 2)
+		WITH NOWAIT
+END
+
+-- Ejecutamos nuestro procedimiento almacenado para la busqueda
+EXEC sp_busqueda_moneda 1, 'PEN'
+GO
+
+-- Consulta para busqueda por tipo de moneda
+SELECT DISTINCT * FROM suscriptions s
+INNER JOIN users U ON u.id = 2 AND s.moneda = 'PEN'
+WHERE s.id_user = u.id
+GO
+
+--Creamos Procedimiento almacenado para la busqueda por plataforma
+CREATE PROCEDURE sp_busqueda_plataforma
+	@plataforma VARCHAR(64)
+AS
+BEGIN
+	IF EXISTS(SELECT nombre FROM suscriptions WHERE nombre = @plataforma)
+	BEGIN
+		SELECT
+			s.nombre Plataforma,
+			u.nombre Usuario,
+			u.email Email,
+			s.moneda Moneda,
+			s.precio Precio,
+			s.ciclo Ciclo,
+			s.fecha_pago 'Fecha de pago'
+		FROM suscriptions s
+		INNER JOIN users u ON s.nombre = @plataforma
+		WHERE s.id_user = u.id
+	END
+	ELSE
+		RAISERROR('Plataforma no existe', 16, 2)
+		WITH NOWAIT
+END
+
+--Ejecutamos
+EXEC sp_busqueda_plataforma 'Spotify'
+GO
+
+-- Coculta para busqueda por pltaforma
+SELECT DISTINCT * FROM suscriptions s
+INNER JOIN users U ON s.nombre = 'Deezer'
+WHERE s.id_user = u.id
+GO
+
+--Creamos Procedimiento almacenado para la busqueda por ciclo de pago
+CREATE PROCEDURE sp_busqueda_ciclo
+	@ciclo VARCHAR(64)
+AS
+BEGIN
+	IF EXISTS(SELECT ciclo FROM suscriptions WHERE ciclo = @ciclo)
+	BEGIN
+		SELECT
+			s.ciclo Ciclo,
+			s.nombre Plataforma,
+			u.nombre Usuario,
+			u.email Email,
+			s.moneda Moneda,
+			s.precio Precio,
+			s.fecha_pago 'Fecha de pago'
+		FROM suscriptions s
+		INNER JOIN users u ON s.ciclo = @ciclo
+		WHERE s.id_user = u.id
+	END
+	ELSE
+		RAISERROR('Ciclo no existe', 16, 2)
+		WITH NOWAIT
+END
+
+--Ejecutamos
+EXEC sp_busqueda_ciclo 'Semanal'
+GO
+
+-- Coculta para busqueda por ciclo de pago
+SELECT DISTINCT * FROM suscriptions s
+INNER JOIN users U ON s.ciclo = 'Anual'
+WHERE s.id_user = u.id
+GO
+
+--Creamos Procedimiento almacenado para la busqueda por ciclo de pago y plataforma
+CREATE PROCEDURE sp_busqueda_ciclo_plataforma
+	@ciclo VARCHAR(64),
+	@plataforma VARCHAR(64)
+AS
+BEGIN
+	IF EXISTS(SELECT nombre FROM suscriptions WHERE nombre = @plataforma)
+	BEGIN
+		SELECT
+			s.nombre Plataforma,
+			s.ciclo Ciclo,
+			u.nombre Usuario,
+			u.email Email,
+			s.moneda Moneda,
+			s.precio Precio,
+			s.fecha_pago 'Fecha de pago'
+		FROM suscriptions s
+		INNER JOIN users u ON s.ciclo = @ciclo AND s.nombre = @plataforma
+		WHERE s.id_user = u.id
+	END
+	ELSE
+		RAISERROR('Ciclo no existe', 16, 2)
+		WITH NOWAIT
+END
+
+--Ejecutamos
+EXEC sp_busqueda_ciclo_plataforma 'Mensual', 'Netflix'
+GO
+
+-- Cosulta para busqueda por ciclo de pago y plataforma
+SELECT DISTINCT * FROM suscriptions s
+INNER JOIN users U ON s.ciclo = 'Anual' AND s.nombre = 'Spotify'
+WHERE s.id_user = u.id
+GO
+
+
+--Creamos Procedimiento almacenado para la busqueda por ciclo de pago y plataforma
+CREATE PROCEDURE sp_busqueda_ciclo_plataforma_moneda
+	@ciclo VARCHAR(64),
+	@plataforma VARCHAR(64),
+	@moneda CHAR(3)
+AS
+BEGIN
+	IF EXISTS(SELECT nombre FROM suscriptions WHERE nombre = @plataforma)
+	BEGIN
+		SELECT
+			s.nombre Plataforma,
+			s.ciclo Ciclo,
+			s.moneda Moneda,
+			u.nombre Usuario,
+			u.email Email,
+			s.precio Precio,
+			s.fecha_pago 'Fecha de pago'
+		FROM suscriptions s
+		INNER JOIN users u ON s.ciclo = @ciclo AND s.nombre = @plataforma AND s.moneda = @moneda
+		WHERE s.id_user = u.id
+	END
+	ELSE
+		RAISERROR('Ciclo no existe', 16, 2)
+		WITH NOWAIT
+END
+
+--Ejecutamos
+EXEC sp_busqueda_ciclo_plataforma 'Mensual', 'Netflix'
+GO
+
+-- Cosulta para busqueda por ciclo de pago, plataforma y moneda
+SELECT DISTINCT * FROM suscriptions s
+INNER JOIN users U ON s.ciclo = 'Anual' AND s.nombre = 'Spotify' AND s.moneda = 'CNY'
+WHERE s.id_user = u.id
+GO
+
+-- Cosulta para busqueda por rango de fecha
+SELECT DISTINCT * FROM suscriptions s
+INNER JOIN users U ON s.ciclo = 'Semestral' AND s.nombre = 'Spotify'
+WHERE s.id_user = u.id
+GO
+
+-- Consulta para saber fecha de pago y la cantidad de usuarios
+SELECT CAST(fecha_pago AS Date) AS dia, COUNT(id) AS total FROM suscriptions 
+GROUP BY CAST(fecha_pago AS Date)
+
+-- Cosulta para busqueda por rango de fecha
+SELECT DISTINCT * FROM suscriptions s
+INNER JOIN users U ON s.fecha_pago BETWEEN '2022-06-01' AND '2022-12-30'
+WHERE s.id_user = u.id
+GO
+
+-- Clientes antiguos con descuentos
+SELECT DISTINCT 
+	u.nombre Nombre,
+	u.email Email,
+	s.nombre Plataforma,
+	s.precio 'Precio total',
+	CONVERT(DECIMAL(8, 2), s.precio*0.1) 'Descuento',
+	CONVERT(DECIMAL(8, 2), s.precio - s.precio*0.1) 'Precio a pagar',
+	s.ciclo Ciclo,
+	s.fecha_pago 'Fecha de pago'
+FROM suscriptions s
+INNER JOIN 
+	users U ON s.fecha_pago BETWEEN '2022-06-01' AND '2022-06-30'
+WHERE s.id_user = u.id
+GO
+
+
+-- Sumatoria
+
+CREATE VIEW vw_total
+AS
+SELECT DISTINCT 
+		u.nombre Nombre,
+		u.email Email,
+		s.nombre Plataforma,
+		s.precio 'Precio total',
+		CONVERT(DECIMAL(8, 2), s.precio*0.1) 'Descuento',
+		CONVERT(DECIMAL(8, 2), s.precio - s.precio*0.1) Total,
+		s.ciclo Ciclo,
+		s.fecha_pago 'Fecha de pago'
+	FROM suscriptions s
+	INNER JOIN 
+		users U ON s.fecha_pago BETWEEN '2022-06-01' AND '2022-06-30'
+	WHERE s.id_user = u.id
+GO
+
+SELECT
+	SUM(Total) 'A pagar',
+	SUM(Descuento) 'Total descuento',
+	SUM(Total)-SUM(Descuento) 'Total a cobrar'
+FROM vw_total
+GO
